@@ -4,12 +4,16 @@
   "description": "",
   "main": "src/funjs.js",
   "scripts": {
-    "test": "jest"
+    "test": "jest && flow check"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "babel-cli": "^6.24.1",
+    "babel-jest": "^20.0.3",
+    "babel-preset-flow": "^6.23.0",
+    "flow-bin": "^0.47.0",
     "jest": "^20.0.4"
   }
 }

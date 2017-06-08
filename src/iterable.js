@@ -1,14 +1,25 @@
+/* TODO: enable flow */
+type IteratorFactory<T> = () => Iterator<T>;
+type FilterResult = {
+  skip: boolean;
+  done: boolean;
+};
+type TerminatingFilter<T> = (val: T, i: number) => FilterResult;
+type Mapper<T> = (val: T, i: number) => T;
+
+type Filter<T> = (val: T, i: number) => boolean;
+
 const isIterable = object =>
   (object !== null) && (typeof object[Symbol.iterator] === 'function');
 
-const es6Filter = (filter) =>
+const es6Filter = <T> (filter: Filter<T>): TerminatingFilter<T> =>
   (item, n) =>
     ({
       skip: !filter(item, n),
       done: false
     });
 
-const sliceFilter = (begin, end) => {
+const sliceFilter = <T> (begin: number, end: number): TerminatingFilter<T> => {
   if (end === undefined) {
     end = begin;
     begin = 0;
@@ -21,7 +32,7 @@ const sliceFilter = (begin, end) => {
     });
 };
 
-const whileFilter = (filter) =>
+const whileFilter = <T> (filter: Filter<T>): TerminatingFilter<T> =>
   (item, n) =>
     ({
       skip: false,
@@ -63,7 +74,11 @@ const iterFinder = (iter, matcher) => {
   }
 };
 
-class FilteredES6CompatibleIterator {
+class FilteredES6CompatibleIterator<T: mixed> {
+  iterator: Iterator<T>;
+  filter: Filter<T>;
+  i: number;
+
   constructor(iterator, filter) {
     this.iterator = iterator;
     this.filter = filter;
@@ -90,7 +105,11 @@ class FilteredES6CompatibleIterator {
   }
 }
 
-class MappedES6CompatibleIterator {
+class MappedES6CompatibleIterator<T: mixed> {
+  iterator: Iterator<T>;
+  mapper: Mapper<T>;
+  i: number;
+
   constructor(iterator, mapper) {
     this.iterator = iterator;
     this.mapper = mapper;
@@ -106,33 +125,35 @@ class MappedES6CompatibleIterator {
   }
 }
 
-class ES6CompatibleIterable {
+class ES6CompatibleIterable<T: mixed> {
+  iteratorFactories: Array<IteratorFactory<mixed>>;
+
   constructor(iteratorFactories) {
     this.iteratorFactories = iteratorFactories;
   }
 
-  slice(begin, end) {
+  slice(begin: number, end: number): Iterable<T> {
     return new ES6CompatibleIterable([
       ...this.iteratorFactories,
       (iterator) => new FilteredES6CompatibleIterator(iterator, sliceFilter(begin, end))
     ]);
   }
 
-  while(filter) {
+  while(filter: Filter<T>): Iterable<T> {
     return new ES6CompatibleIterable([
       ...this.iteratorFactories,
       (iterator) => new FilteredES6CompatibleIterator(iterator, whileFilter(filter))
     ]);
   }
 
-  filter(filter) {
+  filter(filter: Filter<T>): Iterable<T> {
     return new ES6CompatibleIterable([
       ...this.iteratorFactories,
       (iterator) => new FilteredES6CompatibleIterator(iterator, es6Filter(filter))
     ]);
   }
 
-  map(mapper) {
+  map(mapper: Mapper<T>): Iterable<T> {
     return new ES6CompatibleIterable([
       ...this.iteratorFactories,
       (iterator) => new MappedES6CompatibleIterator(iterator, mapper)
@@ -143,7 +164,7 @@ class ES6CompatibleIterable {
     return iterReducer(this[Symbol.iterator](), reducer, init);
   }
 
-  find(filter) {
+  find(filter: Filter<T>) {
     return iterFinder(this[Symbol.iterator](), filter).value;
   }
 
@@ -151,24 +172,24 @@ class ES6CompatibleIterable {
     return iterFinder(this[Symbol.iterator](), filter).index;
   }
 
-  some(filter) {
+  some(filter: Filter<T>) {
     return this.findIndex(filter) !== undefined;
   }
 
-  every(filter) {
+  every(filter: Filter<T>) {
     return this.findIndex(i => !filter(i)) === undefined;
   }
 
-  includes(item) {
+  includes(item: T) {
     return this.some(i => i === item);
   }
 
-  join(delimiter) {
+  join(delimiter: string): string {
     // TODO: see if concatenating to a string is faster in any browsers
     return Array.from(this).join(delimiter);
   }
 
-  forEach(f) {
+  forEach(f: (val: T) => void): void {
     for (const item of this) {
       f(item);
     }
