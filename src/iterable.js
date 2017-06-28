@@ -1,16 +1,25 @@
 /* TODO: enable flow */
-type IteratorFactory<T> = () => Iterator<T>;
+type IteratorFactory<T> = (iter: Iterator<T>) => Iterator<T>;
+
 type FilterResult = {
   skip: boolean;
   done: boolean;
 };
 type TerminatingFilter<T> = (val: T, i: number) => FilterResult;
-type Mapper<T> = (val: T, i: number) => T;
 
 type Filter<T> = (val: T, i: number) => boolean;
+type Mapper<T> = (val: T, i: number) => T;
+type Reducer<T, A> = (acc: A, val: T, i: number) => A;
 
-const isIterable = object =>
-  (object !== null) && (typeof object[Symbol.iterator] === 'function');
+type Finder<T> = {
+  value?: T,
+  index: number
+};
+
+const UNKNOWN_INDEX = 0;
+
+const isIterable = <T> (object: T | Iterable<T>): boolean =>
+  typeof (object: any)[Symbol.iterator] === 'function';
 
 const es6Filter = <T> (filter: Filter<T>): TerminatingFilter<T> =>
   (item, n) =>
@@ -39,44 +48,59 @@ const whileFilter = <T> (filter: Filter<T>): TerminatingFilter<T> =>
       done: !filter(item, n)
     });
 
-const iterReducer = (iter, reducer, init) => {
+const iterReducer = <T, A> (iter: Iterator<T>, reducer: Reducer<T, A>, init: A): A => {
+  let i = 0;
   let acc = init;
-  while (true) {
+
+  let result = null;
+  while (!result) {
     const item = iter.next();
     if (!item.done) {
-      acc = reducer(acc, item.value, this.i++, null);
+      acc = reducer(acc, item.value, i++);
     }
     else {
-      return acc;
+      result = acc;
     }
   }
+
+  return result;
 };
 
-const iterFinder = (iter, matcher) => {
+const iterFinder = <T> (iter: Iterator<T>, filter: Filter<T>): Finder<T> => {
   let i = 0;
-  while (true) {
-    const item = iter.next();
-    if (!item.done) {
-      if (matcher(item.value) === true) {
-        return {
-          value: item.value,
-          index: i
-        };
-      }
-    }
-    else {
+  let item = iter.next();
+  while (!item.done) {
+    if (filter(item.value, i) === true) {
       return {
-        value: undefined,
-        index: undefined
+        value: item.value,
+        index: i
       };
     }
+    item = iter.next();
     ++i;
   }
+
+  return {
+    value: undefined,
+    index: -1
+  };
 };
 
-class FilteredES6CompatibleIterator<T: mixed> {
+const emptyIterator = {
+  next: () => ({
+    done: true
+  }),
+  // NOTE: FlowType insists that all iterators are iterables even though this is optional
+  /*::
+  @@iterator(): Iterator<any> {
+    throw new Error();
+  }
+  */
+};
+
+class FilteredES6CompatibleIterator<T> {
   iterator: Iterator<T>;
-  filter: Filter<T>;
+  filter: TerminatingFilter<T>;
   i: number;
 
   constructor(iterator, filter) {
@@ -85,27 +109,41 @@ class FilteredES6CompatibleIterator<T: mixed> {
     this.i = 0;
   }
 
-  next() {
-    let item;
-    let filterResult;
+  next(): IteratorResult<T, void> {
+    let nextItem = null;
 
-    do {
-      item = this.iterator.next();
+    while (!nextItem) {
+      const item = this.iterator.next();
       if (item.done) {
-        break;
+        nextItem = {
+          done: true
+        };
       }
+      else {
+        const filterResult = this.filter(item.value, this.i++);
+        if (filterResult.done) {
+          nextItem = {
+            done: true
+          };
+        }
+        else if (!filterResult.skip) {
+          nextItem = item;
+        }
+      }
+    }
 
-      filterResult = this.filter(item.value, this.i++);
-      item = (!filterResult.done) ? item : {
-        done: true
-      };
-    } while (!item.done && filterResult.skip);
-
-    return item;
+    return nextItem;
   }
+
+  // NOTE: FlowType insists that all iterators are iterables even though this is optional
+  /*::
+  @@iterator(): Iterator<any> {
+    throw new Error();
+  }
+  */
 }
 
-class MappedES6CompatibleIterator<T: mixed> {
+class MappedES6CompatibleIterator<T> {
   iterator: Iterator<T>;
   mapper: Mapper<T>;
   i: number;
@@ -116,19 +154,30 @@ class MappedES6CompatibleIterator<T: mixed> {
     this.i = 0;
   }
 
-  next() {
+  next(): IteratorResult<T, void> {
     const item = this.iterator.next();
-    return {
-      value: this.mapper(item.value, this.i++, null),
-      done: item.done
+    return (item.done) ? {
+      done: true
+    } : {
+      value: this.mapper(item.value, this.i++),
+      done: false
     };
   }
+
+  // NOTE: FlowType insists that all iterators are iterables even though this is optional
+  /*::
+  @@iterator(): Iterator<any> {
+    throw new Error();
+  }
+  */
 }
 
-class ES6CompatibleIterable<T: mixed> {
-  iteratorFactories: Array<IteratorFactory<mixed>>;
+class ES6CompatibleIterable<T> {
+  iteratorFactories: Array<IteratorFactory<T>>;
 
-  constructor(iteratorFactories) {
+  constructor(iteratorFactories: Array<IteratorFactory<T>>) {
+    // NOTE: craziness as per <https://github.com/facebook/flow/issues/2286>
+    (this: any)[Symbol.iterator] = (this: any)._iterator;
     this.iteratorFactories = iteratorFactories;
   }
 
@@ -160,27 +209,27 @@ class ES6CompatibleIterable<T: mixed> {
     ]);
   }
 
-  reduce(reducer, init) {
-    return iterReducer(this[Symbol.iterator](), reducer, init);
+  reduce<A>(reducer: Reducer<T, A>, init: A): A {
+    return iterReducer(this._iterator(), reducer, init);
   }
 
-  find(filter: Filter<T>) {
-    return iterFinder(this[Symbol.iterator](), filter).value;
+  find(filter: Filter<T>): ?T {
+    return iterFinder(this._iterator(), filter).value;
   }
 
-  findIndex(filter) {
-    return iterFinder(this[Symbol.iterator](), filter).index;
+  findIndex(filter: Filter<T>): number {
+    return iterFinder(this._iterator(), filter).index;
   }
 
-  some(filter: Filter<T>) {
-    return this.findIndex(filter) !== undefined;
+  some(filter: Filter<T>): boolean {
+    return this.findIndex(filter) !== -1;
   }
 
-  every(filter: Filter<T>) {
-    return this.findIndex(i => !filter(i)) === undefined;
+  every(filter: Filter<T>): boolean {
+    return this.findIndex(i => !filter(i, UNKNOWN_INDEX)) === -1;
   }
 
-  includes(item: T) {
+  includes(item: T): boolean {
     return this.some(i => i === item);
   }
 
@@ -195,7 +244,7 @@ class ES6CompatibleIterable<T: mixed> {
     }
   }
 
-  * concat(...items) {
+  * concat(...items: Array<T | Iterable<T>>): Iterable<T> {
     yield* this;
     for (const item of items) {
       if (isIterable(item)) {
@@ -207,11 +256,18 @@ class ES6CompatibleIterable<T: mixed> {
     }
   }
 
-  [Symbol.iterator]() {
+  _iterator(): Iterator<T> {
     const iterator = this.iteratorFactories.reduce(
       (prevIterator, iteratorFactory) =>
-        iteratorFactory(prevIterator), null);
+        iteratorFactory(prevIterator), emptyIterator);
     return iterator;
   }
+
+  // NOTE: craziness as per <https://github.com/facebook/flow/issues/2286>
+  /*::
+  @@iterator(): Iterator<T> {
+    throw new Error();
+  }
+  */
 }
 module.exports = ES6CompatibleIterable;
