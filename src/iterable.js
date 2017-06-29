@@ -86,17 +86,23 @@ const iterFinder = <T> (iter: Iterator<T>, filter: Filter<T>): Finder<T> => {
   };
 };
 
-const emptyIterator = {
-  next: () => ({
-    done: true
-  }),
+class EmptyIterator<T> {
+  constructor(iter: Iterable<T>) {
+  }
+
+  next() {
+    return {
+      done: true
+    };
+  }
+
   // NOTE: FlowType insists that all iterators are iterables even though this is optional
   /*::
-  @@iterator(): Iterator<any> {
+  @@iterator(): Iterator<T> {
     throw new Error();
   }
   */
-};
+}
 
 class FilteredES6CompatibleIterator<T> {
   iterator: Iterator<T>;
@@ -137,7 +143,7 @@ class FilteredES6CompatibleIterator<T> {
 
   // NOTE: FlowType insists that all iterators are iterables even though this is optional
   /*::
-  @@iterator(): Iterator<any> {
+  @@iterator(): Iterator<T> {
     throw new Error();
   }
   */
@@ -166,7 +172,7 @@ class MappedES6CompatibleIterator<T> {
 
   // NOTE: FlowType insists that all iterators are iterables even though this is optional
   /*::
-  @@iterator(): Iterator<any> {
+  @@iterator(): Iterator<T> {
     throw new Error();
   }
   */
@@ -261,7 +267,7 @@ class ES6CompatibleIterable<T> {
   _iterator(): Iterator<T> {
     const iterator = this.iteratorFactories.reduce(
       (prevIterator, iteratorFactory) =>
-        iteratorFactory(prevIterator), emptyIterator);
+        iteratorFactory(prevIterator), new EmptyIterator(this));
     return iterator;
   }
 
