@@ -1,36 +1,8 @@
 /* @flow */
 const ES6CompatibleIterable = require('./iterable');
 
-// NOTE: using `mixed` doesn't work because it reduces type information out of `list`
-// const list = (f: (...args: Array<mixed>) => Iterable<mixed>) =>
-//   (...args: Array<mixed>) =>
-//     new ES6CompatibleIterable([
-//       () => f(...args)
-//     ]);
-
-// NOTE: if all args are of type `T` then we can't pass functions that take arguments of different types
-// const list = <T: mixed> (f: (...args: Array<T>) => Iterable<mixed>) =>
-//   (...args: Array<T>) =>
-//     new ES6CompatibleIterable([
-//       () => f(...args)
-//     ]);
-
-// NOTE: the hack of only using a fixed number of parameters should resolve this issue, yet for some reason doesn't!
-// const list = <T1: mixed, T2: mixed> (f: (arg1: T1, arg2: T2) => Iterable<mixed>) =>
-//   (arg1: T1, arg2: T2) =>
-//     new ES6CompatibleIterable([
-//       () => f(arg1, arg2)
-//     ]);
-
-// NOTE: using `any` doesn't work because all array items must still be of the same type
-// const list = <T: any> (f: (...args: Array<T>) => Iterable<mixed>) =>
-//   (...args: Array<T>) =>
-//     new ES6CompatibleIterable([
-//       () => f(...args)
-//     ]);
-
-const list = (f: (...args: Array<any>) => Iterable<mixed>) =>
-  (...args: Array<mixed>) =>
+const list = <T> (f: (...args: Array<any>) => Iterable<T>) =>
+  (...args: Array<any>) =>
     new ES6CompatibleIterable([
       () => f(...args)
     ]);

@@ -1,4 +1,4 @@
-/* TODO: enable flow */
+/* @flow */
 type IteratorFactory<T> = (iter: Iterator<T>) => Iterator<T>;
 
 type FilterResult = {
@@ -248,10 +248,12 @@ class ES6CompatibleIterable<T> {
     yield* this;
     for (const item of items) {
       if (isIterable(item)) {
-        yield* item;
+        const iterable: Iterable<T> = (item: any); // workaround for <https://github.com/facebook/flow/issues/2286>
+        yield* iterable;
       }
       else {
-        yield item;
+        const singleItem: T = (item: any); // workaround for <https://github.com/facebook/flow/issues/2286>
+        yield singleItem;
       }
     }
   }
