@@ -1,7 +1,7 @@
 /* @flow */
 const ES6CompatibleIterable = require('./iterable');
 
-const list = <T> (f: (...args: Array<any>) => Iterable<T>) =>
+const list = <T> (f: (...args: Array<any>) => Iterator<T>) =>
   (...args: Array<any>) =>
     new ES6CompatibleIterable([
       () => f(...args)
