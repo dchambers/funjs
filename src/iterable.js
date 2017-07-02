@@ -22,9 +22,9 @@ const isIterable = <T> (object: T | Iterable<T>): boolean =>
   typeof (object: any)[Symbol.iterator] === 'function';
 
 const es6Filter = <T> (filter: Filter<T>): TerminatingFilter<T> =>
-  (item, n) =>
+  (val: T, n: number): FilterResult =>
     ({
-      skip: !filter(item, n),
+      skip: !filter(val, n),
       done: false
     });
 
@@ -34,7 +34,7 @@ const sliceFilter = <T> (begin: number, end: number): TerminatingFilter<T> => {
     begin = 0;
   }
 
-  return (item, n) =>
+  return (val: T, n: number): FilterResult =>
     ({
       skip: n < begin,
       done: n >= end
@@ -42,10 +42,10 @@ const sliceFilter = <T> (begin: number, end: number): TerminatingFilter<T> => {
 };
 
 const whileFilter = <T> (filter: Filter<T>): TerminatingFilter<T> =>
-  (item, n) =>
+  (val: T, n: number): FilterResult =>
     ({
       skip: false,
-      done: !filter(item, n)
+      done: !filter(val, n)
     });
 
 const iterReducer = <T, A> (iter: Iterator<T>, reducer: Reducer<T, A>, init: A): A => {
@@ -190,28 +190,28 @@ class ES6CompatibleIterable<T> {
   slice(begin: number, end: number): Iterable<T> {
     return new ES6CompatibleIterable([
       ...this.iteratorFactories,
-      (iterator) => new FilteredES6CompatibleIterator(iterator, sliceFilter(begin, end))
+      (iter: Iterator<T>): Iterator<T> => new FilteredES6CompatibleIterator(iter, sliceFilter(begin, end))
     ]);
   }
 
   while(filter: Filter<T>): Iterable<T> {
     return new ES6CompatibleIterable([
       ...this.iteratorFactories,
-      (iterator) => new FilteredES6CompatibleIterator(iterator, whileFilter(filter))
+      (iter: Iterator<T>): Iterator<T> => new FilteredES6CompatibleIterator(iter, whileFilter(filter))
     ]);
   }
 
   filter(filter: Filter<T>): Iterable<T> {
     return new ES6CompatibleIterable([
       ...this.iteratorFactories,
-      (iterator) => new FilteredES6CompatibleIterator(iterator, es6Filter(filter))
+      (iter: Iterator<T>): Iterator<T> => new FilteredES6CompatibleIterator(iter, es6Filter(filter))
     ]);
   }
 
   map(mapper: Mapper<T>): Iterable<T> {
     return new ES6CompatibleIterable([
       ...this.iteratorFactories,
-      (iterator) => new MappedES6CompatibleIterator(iterator, mapper)
+      (iter: Iterator<T>): Iterator<T> => new MappedES6CompatibleIterator(iter, mapper)
     ]);
   }
 
